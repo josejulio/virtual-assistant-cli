@@ -13,5 +13,5 @@ Use `make run` to start the CLI. It does not support everything!
 Supports:
  - Sending text, selection options
  - Receiving text, options, pause and commands.
- - Display pause as "<pause>" 
- - Commands are displayed as "/command" - it does not show the arguments.
+ - Display pause as `<pause>` 
+ - Commands are displayed as `/command` - it does not show the arguments.
