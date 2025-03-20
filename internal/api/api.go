@@ -10,6 +10,7 @@ import (
 )
 
 type Output interface {
+	Debug() string
 	Messages() []OutputMessage
 	SessionId() string
 }
@@ -17,6 +18,7 @@ type Output interface {
 type OutputImpl struct {
 	messages  []OutputMessage
 	sessionId string
+	debug     string
 }
 
 func (o *OutputImpl) Messages() []OutputMessage {
@@ -27,9 +29,14 @@ func (o *OutputImpl) SessionId() string {
 	return o.sessionId
 }
 
+func (o *OutputImpl) Debug() string {
+	return o.debug
+}
+
 type options struct {
-	Text  string
-	Value string
+	Text     string
+	Value    string
+	OptionId *string
 }
 
 type OutputMessage struct {
@@ -41,6 +48,7 @@ type OutputMessage struct {
 
 type Input struct {
 	Message   string
+	OptionId  string
 	SessionId *string
 }
 
@@ -49,11 +57,30 @@ type response struct {
 	Response []map[string]any `json:"response"`
 }
 
-func MakeSendMessageFn(restApi *url.URL) func(Input) (Output, error) {
+type ConfigDebug struct {
+	Enabled          bool
+	IncludeAssistant bool
+	IncludeResponse  bool
+}
+
+type Config struct {
+	Debug ConfigDebug
+}
+
+func MakeSendMessageFn(restApi *url.URL, config Config) func(Input) (Output, error) {
 	return func(input Input) (Output, error) {
 		baseURL := restApi
 
-		values := map[string]any{"input": map[string]string{"text": input.Message}, "session_id": input.SessionId}
+		inputMessage := map[string]string{"text": input.Message}
+		if input.OptionId != "" {
+			inputMessage["option_id"] = input.OptionId
+		}
+
+		values := map[string]any{"input": inputMessage, "session_id": input.SessionId}
+		if config.Debug.Enabled {
+			values["include_debug"] = config.Debug.IncludeAssistant
+		}
+
 		jsonValues, err := json.Marshal(values)
 		if err != nil {
 			return nil, err
@@ -104,9 +131,16 @@ func MakeSendMessageFn(restApi *url.URL) func(Input) (Output, error) {
 				var ops []options
 				for _, option := range message["options"].([]interface{}) {
 					mapOptions := option.(map[string]interface{})
+					var opId *string = nil
+					if val, ok := mapOptions["option_id"]; ok && val != nil {
+						tmp := val.(string)
+						opId = &tmp
+					}
+
 					ops = append(ops, options{
-						Text:  mapOptions["text"].(string),
-						Value: mapOptions["value"].(string),
+						Text:     mapOptions["text"].(string),
+						Value:    mapOptions["value"].(string),
+						OptionId: opId,
 					})
 					// print(option)
 				}
@@ -126,9 +160,31 @@ func MakeSendMessageFn(restApi *url.URL) func(Input) (Output, error) {
 			}
 		}
 
+		debug := ""
+
+		if config.Debug.Enabled {
+			var data map[string]any
+			err := json.Unmarshal(body, &data)
+			if err == nil {
+				if !config.Debug.IncludeResponse {
+					delete(data, "response")
+				}
+
+				if !config.Debug.IncludeAssistant {
+					delete(data, "assistant")
+				}
+
+				prettyJsonBytes, err := json.MarshalIndent(&data, "", "  ")
+				if err == nil {
+					debug = string(prettyJsonBytes)
+				}
+			}
+		}
+
 		return &OutputImpl{
 			messages:  outputMessages,
 			sessionId: assistantResponse.Session,
+			debug:     debug,
 		}, nil
 	}
 }

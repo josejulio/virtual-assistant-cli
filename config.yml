@@ -1,1 +1,5 @@
 server: "http://127.0.0.1:5000"
+debug:
+  enabled: true
+  include_assistant: true
+  include_response: false

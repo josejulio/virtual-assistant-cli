@@ -25,8 +25,12 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
-	p := tea.NewProgram(ui.CreateModel(api.MakeSendMessageFn(baseURL)))
+	
+	p := tea.NewProgram(ui.CreateModel(api.MakeSendMessageFn(baseURL, api.Config{Debug: api.ConfigDebug{
+		Enabled:          viper.GetBool("debug.enabled"),
+		IncludeAssistant: viper.GetBool("debug.include_assistant"),
+		IncludeResponse:  viper.GetBool("debug.include_response"),
+	}})))
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
 	}
